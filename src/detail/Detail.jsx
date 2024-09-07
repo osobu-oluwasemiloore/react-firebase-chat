@@ -24,12 +24,23 @@ const Detail = () => {
         }
     }
 
+    
+const hourOfTheDay = ["morning", "afternoon", "evening"];
+
+const hourGreeting = () => {
+  const d = new Date().getHours();
+  if (d >= 0 && d < 12) return hourOfTheDay[0]; // Morning: 12 AM to 11:59 AM
+  if (d >= 12 && d < 16) return hourOfTheDay[1]; // Afternoon: 12 PM to 3:59 PM
+  if (d >= 16 && d <= 23) return hourOfTheDay[2]; // Evening: 4 PM to 11:59 PM
+  return "Day"; // Default case
+};
+
     return (
         <div className="detail">
             <div className="user">
                 <img src={user?.avatar || "./avatar.png"} alt="" />
                 <h2>{user?.username}</h2>
-                <p>Lorem ipsum dolor sit amet.</p>
+                <p>{`Hi 🖐 Good ${hourGreeting()} ${user?.username}!`}</p>
             </div>
             <div className="info">
                 <div className="option">
