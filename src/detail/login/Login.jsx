@@ -12,6 +12,7 @@ const Login = () => {
     url: "",
   });
   const [loading, setLoading] = useState(false);
+  const [loadingLogin, setLoadingLogin] = useState(false);
 
   const handleAvatar = (e) => {
     const file = e.target.files?.[0];
@@ -60,7 +61,7 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setLoadingLogin(true);
 
 
     const formData = new FormData(e.currentTarget);
@@ -76,7 +77,7 @@ const Login = () => {
     }
 
     finally{
-        setLoading(false);
+      setLoadingLogin(false);
     }
   };
 
@@ -87,7 +88,7 @@ const Login = () => {
         <form onSubmit={handleLogin}>
           <input type="text" placeholder="Email" name="email" required />
           <input type="password" placeholder="Password" name="password" required />
-          <button type="submit" disabled={loading}>{loading ? "Loading" :"Sign In"}</button>
+          <button type="submit" disabled={loadingLogin}>{loadingLogin ? "Loading" :"Sign In"}</button>
         </form>
       </div>
       <div className="separator"></div>
