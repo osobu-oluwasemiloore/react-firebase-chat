@@ -13,16 +13,20 @@ import { useChatStore } from "../lib/chatStore";
 import { useUserStore } from "../lib/userStore";
 import upload from "../lib/upload";
 import { format } from "timeago.js";
+import { BsFillPinAngleFill } from "react-icons/bs";
+
 
 
 const Chat = () => {
-  const [chat, setChat] = useState(null);  // Set initial state to null for clarity
+  const [chat, setChat] = useState(null);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [img, setImg] = useState({
     file: null,
     url: "",
   });
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeout = useRef(null);
 
   const { currentUser } = useUserStore();
   const { chatId, user, isCurrentUserBlocked, isReceiverBlocked } =
@@ -37,18 +41,43 @@ const Chat = () => {
   }, [chat?.messages]);
 
   useEffect(() => {
-    if (!chatId) return; // Prevent subscribing if chatId is not available
+    if (!chatId) return;
 
     const unSub = onSnapshot(doc(db, "chats", chatId), (res) => {
       const chatData = res.data();
-      console.log("Chat Data:", chatData); // For debugging
       setChat(chatData);
+
+      
+      if (chatData?.typing?.[user.id]) {
+        setIsTyping(true);
+      } else {
+        setIsTyping(false);
+      }
     });
 
     return () => {
       unSub();
     };
-  }, [chatId]);
+  }, [chatId, user.id]);
+
+  
+  const handleTyping = () => {
+    if (typingTimeout.current) {
+      clearTimeout(typingTimeout.current);
+    }
+
+    
+    updateDoc(doc(db, "chats", chatId), {
+      [`typing.${currentUser.id}`]: true,
+    });
+
+    
+    typingTimeout.current = setTimeout(() => {
+      updateDoc(doc(db, "chats", chatId), {
+        [`typing.${currentUser.id}`]: false,
+      });
+    }, 3000);
+  };
 
   const handleEmoji = (e) => {
     setText((prev) => prev + e.emoji);
@@ -79,8 +108,15 @@ const Chat = () => {
           senderId: currentUser.id,
           text,
           createdAt: new Date(),
+          reactions: [],
+          pinned: false, 
           ...(imgUrl && { img: imgUrl }),
         }),
+      });
+
+      
+      await updateDoc(doc(db, "chats", chatId), {
+        [`typing.${currentUser.id}`]: false,
       });
 
       const userIDs = [currentUser.id, user.id];
@@ -121,16 +157,54 @@ const Chat = () => {
   };
 
   
-const hourOfTheDay = ["morning", "afternoon", "evening"];
+  const handleReaction = async (messageId, emoji) => {
+    const messageRef = doc(db, "chats", chatId);
+    const messageSnapshot = await getDoc(messageRef);
+    const chatData = messageSnapshot.data();
 
-const hourGreeting = () => {
-  const d = new Date().getHours();
-  if (d >= 0 && d < 12) return hourOfTheDay[0]; // Morning: 12 AM to 11:59 AM
-  if (d >= 12 && d < 16) return hourOfTheDay[1]; // Afternoon: 12 PM to 3:59 PM
-  if (d >= 16 && d <= 23) return hourOfTheDay[2]; // Evening: 4 PM to 11:59 PM
-  return "Day"; // Default case
-};
-  
+    const updatedMessages = chatData.messages.map((msg) => {
+      if (msg.createdAt?.toMillis() === messageId) {
+        const existingReactionIndex = msg.reactions.findIndex(
+          (r) => r.userId === currentUser.id
+        );
+        if (existingReactionIndex > -1) {
+          
+          msg.reactions[existingReactionIndex].emoji = emoji;
+        } else {
+          
+          msg.reactions.push({ userId: currentUser.id, emoji });
+        }
+      }
+      return msg;
+    });
+
+    await updateDoc(messageRef, { messages: updatedMessages });
+  };
+
+  const handlePin = async (messageId) => {
+    const messageRef = doc(db, "chats", chatId);
+    const messageSnapshot = await getDoc(messageRef);
+    const chatData = messageSnapshot.data();
+    
+    const updatedMessages = chatData.messages.map((msg) => {
+      if (msg.createdAt?.toMillis() === messageId) {
+        msg.pinned = !msg.pinned;
+      }
+      return msg;
+    });
+
+    await updateDoc(messageRef, { messages: updatedMessages });
+  };
+
+  const hourOfTheDay = ["morning", "afternoon", "evening"];
+
+  const hourGreeting = () => {
+    const d = new Date().getHours();
+    if (d >= 0 && d < 12) return hourOfTheDay[0];
+    if (d >= 12 && d < 16) return hourOfTheDay[1];
+    if (d >= 16 && d <= 23) return hourOfTheDay[2];
+    return "Day";
+  };
 
   return (
     <div className="chat">
@@ -152,19 +226,36 @@ const hourGreeting = () => {
         {chat?.messages?.length > 0 ? (
           chat.messages.map((message) => (
             <div
-              className={
-                message.senderId === currentUser?.id ? "message own" : "message"
-              }
-              key={message?.createdAt?.toMillis() || Math.random()}  // Use createdAt or fallback to random key
+              className={message.senderId === currentUser?.id ? "message own" : "message"}
+              key={message?.createdAt?.toMillis() || Math.random()}
             >
               <div className="texts">
                 {message.img && <img src={message.img} alt="" />}
                 <p>{message.text}</p>
                 <span>
-                  {message.createdAt
-                    ? format(message.createdAt.toDate())
-                    : "Time unknown"}
+                  {message.createdAt ? format(message.createdAt.toDate()) : "Time unknown"}
                 </span>
+              </div>
+
+              <div className="pin-icon" onClick={() => handlePin(message.createdAt.toMillis())}>
+                <BsFillPinAngleFill color={message.pinned? "#fff": "#808b96"} />
+              </div>
+
+              <div className="reactions">
+                {message.reactions?.map((reaction) => (
+                  <span key={reaction.userId}>{reaction.emoji}</span>
+                ))}
+              </div>
+              <div className="reaction-buttons">
+                <button onClick={() => handleReaction(message.createdAt.toMillis(), "❤️")}>
+                  ❤️
+                </button>
+                <button onClick={() => handleReaction(message.createdAt.toMillis(), "👍")}>
+                  👍
+                </button>
+                <button onClick={() => handleReaction(message.createdAt.toMillis(), "😂")}>
+                  😂
+                </button>
               </div>
             </div>
           ))
@@ -178,56 +269,51 @@ const hourGreeting = () => {
             </div>
           </div>
         )}
+        {isTyping && (
+          <div className="typing-indicator">
+            {user?.username} is typing...
+          </div>
+        )}
         <div ref={endRef}></div>
       </div>
-      <div className="bottom" onKeyDown={(event) => {
-        if(event?.key === "Enter") {
-            text && handleSend()
-        }
-      }}>
-        <div className="icons">
-          <label htmlFor="file">
-            <img src="./img.png" alt="" />
-          </label>
-          <input
-            type="file"
-            id="file"
-            style={{ display: "none" }}
-            onChange={handleImg}
-          />
-          <img src="./camera.png" alt="" />
-          <img src="./mic.png" alt="" />
-        </div>
+      <div className="bottom">
         <input
           type="text"
-          placeholder={
-            isCurrentUserBlocked || isReceiverBlocked
-              ? "You cannot send a message"
-              : "Type a message..."
-          }
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          onInput={handleTyping}
+          placeholder="Type a message..."
           disabled={isCurrentUserBlocked || isReceiverBlocked}
         />
         <div className="emoji">
+          {open && <EmojiPicker onEmojiClick={handleEmoji} />}
+        </div>
+        <div className="icons">
+          <input type="file" id="file" onChange={handleImg} style={{ display: "none" }} />
+          <label htmlFor="file">
+            <img src="./img.png" alt="" />
+          </label>
+          <img src="./camera.png" alt="" />
+          <img src="./mic.png" alt="" />
+          <div className="emoji">
           <img
             src="./emoji.png"
             alt=""
             onClick={() => setOpen((prev) => !prev)}
           />
-          {open && (
-            <div className="picker">
-              <EmojiPicker onEmojiClick={handleEmoji} />
-            </div>
-          )}
+          <div className="picker">
+            <EmojiPicker open={open} onEmojiClick={handleEmoji} />
+          </div>
         </div>
-        <button
-          className="sendButton"
-          onClick={handleSend}
-          disabled={isCurrentUserBlocked || isReceiverBlocked}
-        >
-          Send
-        </button>
+          <button
+            className="sendButton"
+            onClick={handleSend}
+            disabled={isCurrentUserBlocked || isReceiverBlocked}
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );

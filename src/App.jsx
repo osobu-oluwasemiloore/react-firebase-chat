@@ -9,6 +9,9 @@ import { auth } from "./lib/firebase";
 import { useUserStore } from "./lib/userStore";
 import { useChatStore } from "./lib/chatStore";
 import { Mobile } from "./components/mobile/Mobile";
+import "./responsive.css";
+
+
 
 const App = () => {
   const { currentUser, isLoading, fetchUserInfo } = useUserStore();

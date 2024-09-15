@@ -1,0 +1,70 @@
+/* Adjust chat layout for mobile devices */
+@media (max-width: 768px) {
+  .chat {
+    flex-direction: column;
+    padding: 10px; /* Add spacing on smaller screens */
+    border: none; /* Remove borders for cleaner mobile view */
+  }
+
+  .chat .top img {
+    width: 50px; /* Reduce image sizes */
+    height: 50px;
+  }
+
+  .chat .center .message {
+    max-width: 100%; /* Make messages full width */
+  }
+
+  .chat .bottom input {
+    padding: 10px; /* Adjust input padding for smaller screens */
+    font-size: 14px;
+  }
+
+  .chat .sendButton {
+    padding: 5px 10px; /* Make button smaller on mobile */
+  }
+}
+
+/* Adjust detail layout for mobile devices */
+@media (max-width: 600px) {
+  .detail {
+    padding: 10px;
+  }
+
+  .detail .user img {
+    width: 80px; /* Smaller profile image */
+    height: 80px;
+  }
+
+  .detail .info {
+    flex-direction: column;
+  }
+
+  .detail button {
+    width: 100%;
+  }
+}
+@media (max-width: 768px) {
+  .chat, .detail, .list, .container {
+    flex-direction: column;  /* Stack components vertically */
+    width: 100vw;  /* Ensure they span full width */
+    height: auto;  /* Allow them to resize based on content */
+  }
+
+  .chat img, .detail img, .list img {
+    width: 50px;  /* Reduce image sizes for mobile */
+    height: auto;
+  }
+
+  .chat .message, .detail .info, .list .item {
+    width: 100%;  /* Allow content to stretch full width */
+  }
+
+  .chat .bottom, .detail .bottom {
+    width: 100%;  /* Ensure input or button elements span full width */
+  }
+
+  .chat input, .detail button {
+    width: 100%;  /* Stretch input/buttons on mobile */
+  }
+}

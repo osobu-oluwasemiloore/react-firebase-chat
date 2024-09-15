@@ -1,5 +1,50 @@
-.list{
+.list {
     flex: 1;
     display: flex;
     flex-direction: column;
-}
+    overflow-y: auto;
+  }
+  
+  /* Responsive Rules */
+  @media (max-width: 1024px) {
+    .list {
+      width: 25%; /* Keep the list visible but smaller on tablets */
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .list {
+      width: 30%; /* Adjust list width for mobile landscape */
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .list {
+      width: 35%; /* Reduce list size a bit more on smaller screens */
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .list {
+      display: none; /* Hide the list on very small screens for better focus on chat */
+    }
+  }
+  
+  .list img {
+    width: 40px;
+    height: auto;
+  }
+  
+  /* Fine-tuning the images for responsiveness */
+  @media (max-width: 768px) {
+    .list img {
+      width: 35px; /* Reduce image size slightly on smaller screens */
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .list img {
+      width: 30px; /* Further reduce image size on very small screens */
+    }
+  }
+  
