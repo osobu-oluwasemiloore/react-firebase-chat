@@ -1,21 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import "./chat.css";
 import EmojiPicker from "emoji-picker-react";
-import {
-  arrayUnion,
-  doc,
-  getDoc,
-  onSnapshot,
-  updateDoc,
-} from "firebase/firestore";
+import { arrayUnion, doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useChatStore } from "../lib/chatStore";
 import { useUserStore } from "../lib/userStore";
 import upload from "../lib/upload";
 import { format } from "timeago.js";
 import { BsFillPinAngleFill } from "react-icons/bs";
-
-
 
 const Chat = () => {
   const [chat, setChat] = useState(null);
@@ -26,13 +18,28 @@ const Chat = () => {
     url: "",
   });
   const [isTyping, setIsTyping] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [videoStream, setVideoStream] = useState(null);
+  const [callReceived, setCallReceived] = useState(false);
+  const [isCalling, setIsCalling] = useState(false);
+  
   const typingTimeout = useRef(null);
-
   const { currentUser } = useUserStore();
-  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked } =
-    useChatStore();
-
+  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked } = useChatStore();
+  
   const endRef = useRef(null);
+  const videoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+
+  // Add this function to return greeting based on time of day
+  const hourGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "morning";
+    if (hour < 18) return "afternoon";
+    return "evening";
+  };
 
   useEffect(() => {
     if (chat?.messages) {
@@ -47,7 +54,6 @@ const Chat = () => {
       const chatData = res.data();
       setChat(chatData);
 
-      
       if (chatData?.typing?.[user.id]) {
         setIsTyping(true);
       } else {
@@ -60,18 +66,15 @@ const Chat = () => {
     };
   }, [chatId, user.id]);
 
-  
   const handleTyping = () => {
     if (typingTimeout.current) {
       clearTimeout(typingTimeout.current);
     }
 
-    
     updateDoc(doc(db, "chats", chatId), {
       [`typing.${currentUser.id}`]: true,
     });
 
-    
     typingTimeout.current = setTimeout(() => {
       updateDoc(doc(db, "chats", chatId), {
         [`typing.${currentUser.id}`]: false,
@@ -109,12 +112,11 @@ const Chat = () => {
           text,
           createdAt: new Date(),
           reactions: [],
-          pinned: false, 
+          pinned: false,
           ...(imgUrl && { img: imgUrl }),
         }),
       });
 
-      
       await updateDoc(doc(db, "chats", chatId), {
         [`typing.${currentUser.id}`]: false,
       });
@@ -156,54 +158,37 @@ const Chat = () => {
     }
   };
 
-  
-  const handleReaction = async (messageId, emoji) => {
-    const messageRef = doc(db, "chats", chatId);
-    const messageSnapshot = await getDoc(messageRef);
-    const chatData = messageSnapshot.data();
-
-    const updatedMessages = chatData.messages.map((msg) => {
-      if (msg.createdAt?.toMillis() === messageId) {
-        const existingReactionIndex = msg.reactions.findIndex(
-          (r) => r.userId === currentUser.id
-        );
-        if (existingReactionIndex > -1) {
-          
-          msg.reactions[existingReactionIndex].emoji = emoji;
-        } else {
-          
-          msg.reactions.push({ userId: currentUser.id, emoji });
-        }
-      }
-      return msg;
-    });
-
-    await updateDoc(messageRef, { messages: updatedMessages });
+  const handleCall = async () => {
+    setIsCalling(true);
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    setVideoStream(stream);
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
   };
 
-  const handlePin = async (messageId) => {
-    const messageRef = doc(db, "chats", chatId);
-    const messageSnapshot = await getDoc(messageRef);
-    const chatData = messageSnapshot.data();
-    
-    const updatedMessages = chatData.messages.map((msg) => {
-      if (msg.createdAt?.toMillis() === messageId) {
-        msg.pinned = !msg.pinned;
-      }
-      return msg;
-    });
-
-    await updateDoc(messageRef, { messages: updatedMessages });
+  const handleEndCall = () => {
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      setIsCameraOn(false);
+      setIsCalling(false);
+    }
   };
 
-  const hourOfTheDay = ["morning", "afternoon", "evening"];
+  const handleToggleMute = () => {
+    if (videoStream) {
+      videoStream.getAudioTracks().forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsMuted(!isMuted);
+    }
+  };
 
-  const hourGreeting = () => {
-    const d = new Date().getHours();
-    if (d >= 0 && d < 12) return hourOfTheDay[0];
-    if (d >= 12 && d < 16) return hourOfTheDay[1];
-    if (d >= 16 && d <= 23) return hourOfTheDay[2];
-    return "Day";
+  const handleToggleSpeaker = () => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = isSpeakerOn;
+      setIsSpeakerOn(!isSpeakerOn);
+    }
   };
 
   return (
@@ -217,11 +202,12 @@ const Chat = () => {
           </div>
         </div>
         <div className="icons">
-          <img src="./phone.png" alt="" />
+          <img src="./phone.png" alt="" onClick={handleCall} />
           <img src="./video.png" alt="" />
           <img src="./info.png" alt="" />
         </div>
       </div>
+
       <div className="center">
         {chat?.messages?.length > 0 ? (
           chat.messages.map((message) => (
@@ -236,46 +222,14 @@ const Chat = () => {
                   {message.createdAt ? format(message.createdAt.toDate()) : "Time unknown"}
                 </span>
               </div>
-
-              <div className="pin-icon" onClick={() => handlePin(message.createdAt.toMillis())}>
-                <BsFillPinAngleFill color={message.pinned? "#fff": "#808b96"} />
-              </div>
-
-              <div className="reactions">
-                {message.reactions?.map((reaction) => (
-                  <span key={reaction.userId}>{reaction.emoji}</span>
-                ))}
-              </div>
-              <div className="reaction-buttons">
-                <button onClick={() => handleReaction(message.createdAt.toMillis(), "❤️")}>
-                  ❤️
-                </button>
-                <button onClick={() => handleReaction(message.createdAt.toMillis(), "👍")}>
-                  👍
-                </button>
-                <button onClick={() => handleReaction(message.createdAt.toMillis(), "😂")}>
-                  😂
-                </button>
-              </div>
             </div>
           ))
         ) : (
           <p>No messages yet.</p>
         )}
-        {img.url && (
-          <div className="message own">
-            <div className="texts">
-              <img src={img.url} alt="" />
-            </div>
-          </div>
-        )}
-        {isTyping && (
-          <div className="typing-indicator">
-            {user?.username} is typing...
-          </div>
-        )}
         <div ref={endRef}></div>
       </div>
+
       <div className="bottom">
         <input
           type="text"
@@ -297,15 +251,15 @@ const Chat = () => {
           <img src="./camera.png" alt="" />
           <img src="./mic.png" alt="" />
           <div className="emoji">
-          <img
-            src="./emoji.png"
-            alt=""
-            onClick={() => setOpen((prev) => !prev)}
-          />
-          <div className="picker">
-            <EmojiPicker open={open} onEmojiClick={handleEmoji} />
+            <img
+              src="./emoji.png"
+              alt=""
+              onClick={() => setOpen((prev) => !prev)}
+            />
+            <div className="picker">
+              <EmojiPicker open={open} onEmojiClick={handleEmoji} />
+            </div>
           </div>
-        </div>
           <button
             className="sendButton"
             onClick={handleSend}
@@ -315,6 +269,23 @@ const Chat = () => {
           </button>
         </div>
       </div>
+
+      {/* Video Call Interface */}
+      {isCalling && (
+        <div className="video-call-container">
+          <video ref={videoRef} autoPlay className="local-video" />
+          {callReceived && <video ref={remoteVideoRef} autoPlay className="remote-video" />}
+          <div className="video-call-controls">
+            <button className="end-call-btn" onClick={handleEndCall}>End Call</button>
+            <button className="mute-btn" onClick={handleToggleMute}>
+              {isMuted ? "Unmute" : "Mute"}
+            </button>
+            <button className="speaker-btn" onClick={handleToggleSpeaker}>
+              {isSpeakerOn ? "Speaker Off" : "Speaker On"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
