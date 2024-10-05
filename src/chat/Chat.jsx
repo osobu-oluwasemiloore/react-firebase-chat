@@ -16,6 +16,8 @@ import { format } from "timeago.js";
 import { io } from "socket.io-client";
 import { DailingAudio } from "../components/DailingAudio/DailingAudio";
 import IncomingCall from "../components/IncomingCall";
+import { setUserPresence } from "../components/setUserPresence";
+import ChatUserStatus from "../components/ChatUserStatus";
 
 const Chat = () => {
   const [chat, setChat] = useState(null);
@@ -43,6 +45,12 @@ const Chat = () => {
   const endRef = useRef(null);
   const videoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+
+  // Set user presence when the chat component mounts
+  useEffect(() => {
+    setUserPresence(currentUser.id); // Update user presence when the component loads
+  }, [currentUser.id]);
+
 
   // Add this function to return greeting based on time of day
   const hourGreeting = () => {
@@ -226,6 +234,7 @@ const Chat = () => {
           <div className="texts">
             <span>{user?.username}</span>
             <p>{`Hi 🖐 Good ${hourGreeting()} ${user?.username}!`}</p>
+            <ChatUserStatus userId={user?.id} /> {/* Display user status */}
           </div>
         </div>
         <div className="icons">
